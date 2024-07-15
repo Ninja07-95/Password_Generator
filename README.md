@@ -9,7 +9,7 @@ Ce projet est un générateur de mots de passe configurable en ligne de commande
 Installation : 
 
 
-git clone https://github.com/votre-utilisateur/password-generator.git
+git clone https://github.com/Ninja07-95/Password_Generator.git
 cd password-generator
 
 Utilisation :
