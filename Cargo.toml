@@ -6,4 +6,6 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5" # dds
-
+termcolor = "1.1"
+log = "0.4"
+simplelog = "0.11"
