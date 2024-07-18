@@ -1,13 +1,16 @@
-mod utils;
+mod utils; // Importe le module utils
 
-use utils::{create_pass, create_passphrase, PassConfig, save_to_file};
-use std::{env, io::Write};
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-use simplelog::{Config, LevelFilter, SimpleLogger};
+use utils::{create_pass, create_passphrase, PassConfig, save_to_json, save_to_csv, save_to_txt}; // Importe les fonctions et structs nécessaires depuis utils
+use std::{env, io::Write}; // Importe des modules de la bibliothèque standard
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor}; // Pour la coloration de la sortie terminal
+use simplelog::{Config, LevelFilter, SimpleLogger}; // Pour la gestion des logs
+use log::info; // Pour la journalisation
 
 fn main() {
+    // Initialise le logger
     SimpleLogger::init(LevelFilter::Info, Config::default()).unwrap();
 
+    // Récupère les arguments de la ligne de commande
     let config = env::args().collect::<Vec<String>>();
     let mut has_nums = true;
     let mut has_symbols = true;
@@ -16,8 +19,11 @@ fn main() {
     let mut length = 10;
     let mut num_passwords = 1;
     let mut filename = None;
+    let mut file_format = "json";
     let mut use_passphrase = false;
     let mut passphrase_words = 4;
+    
+    // Message d'aide
     let help_msg = "passgen [OPTIONS]
 
     OPTIONS:
@@ -31,10 +37,13 @@ fn main() {
         -w  | --words <words>   Number of words in passphrase (default: 4)
         -h  | --help            Display this message
         -o  | --out <file>      Save to file
+        -f  | --format <format> Specify file format (json, csv, txt)
     ";
 
+    // Variable pour stocker une option invalide
     let mut invalid_option = None;
 
+    // Boucle sur les arguments et gère les options
     for (index, arg) in config.iter().enumerate() {
         match &arg[..] {
             "--no-nums" | "-nn" => {
@@ -50,7 +59,9 @@ fn main() {
                 has_uppercase = false;
             }
             "--out" | "-o" => {
-                filename = Some(config[index + 1].to_string());
+                if let Some(next_arg) = config.get(index + 1) {
+                    filename = Some(next_arg.clone());
+                }
             }
             "--len" | "-l" => {
                 length = match config.get(index + 1) {
@@ -106,24 +117,37 @@ fn main() {
                     }
                 };
             }
+            "--format" | "-f" => {
+                file_format = match config.get(index + 1) {
+                    Some(format) if format == "json" || format == "csv" || format == "txt" => format,
+                    _ => {
+                        eprintln!("Error: Invalid format '{}'\n", config.get(index + 1).unwrap_or(&String::new()));
+                        println!("{}", help_msg);
+                        std::process::exit(1);
+                    }
+                };
+            }
             "--help" | "-h" => {
                 println!("{}", help_msg);
                 std::process::exit(0);
             }
-            _ if arg.starts_with('-') => {
-                invalid_option = Some(arg.to_string());
-                break;
+            _ => {
+                if arg.starts_with('-') {
+                    invalid_option = Some(arg.clone());
+                    break;
+                }
             }
-            _ => continue,
         };
     }
 
-    if let Some(invalid_option) = invalid_option {
-        eprintln!("Error: Invalid option '{}'\n", invalid_option);
+    // Gère les options invalides
+    if let Some(option) = invalid_option {
+        eprintln!("Error: Invalid option '{}'\n", option);
         println!("{}", help_msg);
         std::process::exit(1);
     }
 
+    // Crée la configuration de génération de mot de passe
     let pass_config = PassConfig {
         length,
         has_nums,
@@ -133,36 +157,61 @@ fn main() {
         filename: filename.clone(),
     };
 
+    // Initialise la sortie standard avec coloration
     let mut stdout = StandardStream::stdout(ColorChoice::Always);
     let mut passwords = Vec::new();
 
+    // Génère les mots de passe ou les phrases de passe
     if use_passphrase {
-        log::info!("Generating passphrases");
+        info!("Generating passphrases");
         for _ in 0..num_passwords {
             let passphrase = create_passphrase(passphrase_words);
             passwords.push(passphrase);
         }
     } else {
-        log::info!("Generating passwords");
+        info!("Generating passwords");
         for _ in 0..num_passwords {
             let password = create_pass(&pass_config);
             passwords.push(password);
         }
     }
 
+    // Affiche les mots de passe ou les phrases de passe générés
     stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true)).unwrap();
     writeln!(stdout, "Generated {}: ", if use_passphrase { "Passphrases" } else { "Passwords" }).unwrap();
 
     for password in &passwords {
-        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Rgb(255, 165, 0))).set_bold(false)).unwrap();
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Rgb(0, 255, 0))).set_bold(true)).unwrap();
         writeln!(stdout, "{}", password).unwrap();
     }
 
+    stdout.reset().unwrap();
+
+    // Sauvegarde les mots de passe ou les phrases de passe dans un fichier si spécifié
     if let Some(filename) = filename {
-        if let Err(e) = save_to_file(&filename, &passwords) {
-            eprintln!("Error saving passwords to file: {}", e);
-        } else {
-            log::info!("Passwords saved to file '{}'", filename);
+        match file_format {
+            "json" => {
+                if let Err(e) = save_to_json(&filename, &passwords) {
+                    eprintln!("Error saving passwords to JSON file: {}", e);
+                } else {
+                    info!("Passwords saved to JSON file '{}'", filename);
+                }
+            },
+            "csv" => {
+                if let Err(e) = save_to_csv(&filename, &passwords) {
+                    eprintln!("Error saving passwords to CSV file: {}", e);
+                } else {
+                    info!("Passwords saved to CSV file '{}'", filename);
+                }
+            },
+            "txt" => {
+                if let Err(e) = save_to_txt(&filename, &passwords) {
+                    eprintln!("Error saving passwords to TXT file: {}", e);
+                } else {
+                    info!("Passwords saved to TXT file '{}'", filename);
+                }
+            },
+            _ => unreachable!(),
         }
     }
 }
