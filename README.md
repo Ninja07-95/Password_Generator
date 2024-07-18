@@ -76,7 +76,7 @@ cargo test
 
 # Authors
 
-BARRIZ Anass
-Samba
-NGUIDIA Arthur
+- BARRIZ Anass
+- Samba
+- NGUIDIA Arthur
 
